@@ -1,0 +1,49 @@
+version: '3.12'
+
+services:
+  llm-service:
+    build: 
+      context: ./docker
+      dockerfile: Dockerfile.llm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+    environment:
+      - MODEL_PATH=/models/llama-2-7b-chat.Q4_K_M.gguf
+      - NUM_THREADS=4
+      - CONTEXT_SIZE=2048
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
+  api-service:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_API_URL=http://llm-service:8080
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+    depends_on:
+      - llm-service
+      - rabbitmq
+
+  agent-service:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.agent
+    environment:
+      - LLM_API_URL=http://llm-service:8080
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+    depends_on:
+      - llm-service
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
